@@ -1,8 +1,11 @@
 {
     "name": "B2クラウド自動再ログイン",
-    "version": "0.1.4.1",
+    "version": "0.2.0",
     "description": "B2クラウド自動再ログイン",
-    "manifest_version": 2,
+    "manifest_version": 3,
+    "permissions": [
+        "storage"
+    ],
     "content_scripts": [
         {
             "matches": [
@@ -17,8 +20,7 @@
         }
     ],
     "background": {
-        "scripts": ["background.js"],
-        "persistent": false
+        "service_worker": "background.js"
     },
     "options_page": "options.html",
     "icons": {

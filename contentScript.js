@@ -1,11 +1,3 @@
-function getLocalValue(key) {
-    return new Promise(resolve => {
-        chrome.runtime.sendMessage(key, response => {
-            resolve(response);
-        });
-    });
-}
-
 async function login() {
     const element_code1 = document.getElementById('code1');
     const element_code2 = document.getElementById('code2');
@@ -13,11 +5,13 @@ async function login() {
     const element_id = document.getElementById('kojin');
     const button_login = document.evaluate('//*[@class="nav-login-btn"]/a', document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotItem(0);
 
-    element_code1.value = await getLocalValue('code1');
-    element_code2.value = await getLocalValue('code2');
+    const values = await chrome.storage.local.get(['code1', 'code2', 'password', 'id']);
+
+    element_code1.value = values.code1 || '';
+    element_code2.value = values.code2 || '';
     element_password.type = 'password';
-    element_password.value = await getLocalValue('password');
-    element_id.value = await getLocalValue('id');
+    element_password.value = values.password || '';
+    element_id.value = values.id || '';
 
     if (element_code1.value != '' && element_password.value != '') {
         button_login.click();

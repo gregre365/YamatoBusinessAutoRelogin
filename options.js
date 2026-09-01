@@ -1,5 +1,5 @@
 
-document.getElementById('save').onclick = () => {
+document.getElementById('save').onclick = async () => {
     const element_code1 = document.getElementById('code1');
     const element_code2 = document.getElementById('code2');
     const element_password = document.getElementById('password');
@@ -34,33 +34,39 @@ document.getElementById('save').onclick = () => {
         message += '・個人ユーザーIDは半角英数字6～20文字です<br>';
     }
     if (validate_ok) {
-        localStorage.code1 = element_code1.value;
-        localStorage.code2 = element_code2.value;
-        localStorage.password = element_password.value;
-        localStorage.id = element_id.value;
+        await chrome.storage.local.set({
+            code1: element_code1.value,
+            code2: element_code2.value,
+            password: element_password.value,
+            id: element_id.value
+        });
         message = '保存しました'
     }
     element_message.innerHTML = message;
 }
 
-const code1 = localStorage.code1;
-const code2 = localStorage.code2;
-const password = localStorage.password;
-const id = localStorage.id;
+async function loadValues() {
+    const values = await chrome.storage.local.get(['code1', 'code2', 'password', 'id']);
 
-if (code1) {
-    const element_code1 = document.getElementById('code1');
-    element_code1.value = code1;
+    // Manifest V2 の頃に localStorage へ保存した設定を一度だけ引き継ぐ
+    if (values.code1 === undefined && localStorage.code1) {
+        const migrated = {
+            code1: localStorage.code1 || '',
+            code2: localStorage.code2 || '',
+            password: localStorage.password || '',
+            id: localStorage.id || ''
+        };
+        await chrome.storage.local.set(migrated);
+        localStorage.clear();
+        return migrated;
+    }
+    return values;
 }
-if (code2) {
-    const element_code2 = document.getElementById('code2');
-    element_code2.value = code2;
-}
-if (password) {
-    const element_password = document.getElementById('password');
-    element_password.value = password;
-}
-if (id) {
-    const element_id = document.getElementById('id');
-    element_id.value = id;
-}
+
+loadValues().then(values => {
+    for (const key of ['code1', 'code2', 'password', 'id']) {
+        if (values[key]) {
+            document.getElementById(key).value = values[key];
+        }
+    }
+});
