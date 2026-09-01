@@ -1,13 +1,14 @@
 {
     "name": "B2クラウド自動再ログイン",
-    "version": "0.1.3",
+    "version": "0.1.4.1",
     "description": "B2クラウド自動再ログイン",
     "manifest_version": 2,
     "content_scripts": [
         {
             "matches": [
                 "https://newb2web.kuronekoyamato.co.jp/system_error.html*",
-                "https://bmypage.kuronekoyamato.co.jp/bmypage/servlet/*"
+                "https://bmypage.kuronekoyamato.co.jp/bmypage/servlet/*",
+                "https://bmypage.kuronekoyamato.co.jp/bmypage/logout_systemError.htm*"
             ],
             "js": [
                 "contentScript.js"

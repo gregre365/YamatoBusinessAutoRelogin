@@ -10,7 +10,7 @@ async function login() {
     const element_code1 = document.getElementById('code1');
     const element_code2 = document.getElementById('code2');
     const element_password = document.getElementById('password');
-    const element_id = document.getElementById('id');
+    const element_id = document.getElementById('kojin');
     const button_login = document.evaluate('//*[@class="nav-login-btn"]/a', document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotItem(0);
 
     element_code1.value = await getLocalValue('code1');
@@ -25,9 +25,10 @@ async function login() {
 }
 
 if (location.href === 'https://newb2web.kuronekoyamato.co.jp/system_error.html?api=0') {
-    const button_login = document.getElementById('login')[0];
+    const button_login = document.getElementById('login');
     button_login.click();
-} else if (location.href === 'https://bmypage.kuronekoyamato.co.jp/bmypage/servlet/logout_systemError.htm') {
+} else if (location.href.indexOf('https://bmypage.kuronekoyamato.co.jp/bmypage/servlet/logout_systemError.htm') == 0 ||
+            location.href.indexOf('https://bmypage.kuronekoyamato.co.jp/bmypage/logout_systemError.htm') == 0) {
     const button_login = document.getElementById('submitButton');
     button_login.click();
 } else if (location.href === 'https://bmypage.kuronekoyamato.co.jp/bmypage/servlet/jp.co.kuronekoyamato.wur.hmp.servlet.user.HMPLGI0010JspServlet') {
