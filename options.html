@@ -2,17 +2,29 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>ヤマトビジネスメンバーズ ログイン情報</title>
+    <title>B2クラウド自動再ログイン 設定</title>
+    <style>
+        .warning { color: #a00; }
+        .note { color: #555; font-size: 90%; }
+        fieldset:disabled { opacity: 0.5; }
+    </style>
 </head>
 <body>
 <div>
-    <p>一定時間操作を行わないと自動ログアウトされてしまうヤマトビジネスメンバーズに自動再ログイン機能を追加します。<br>
+    <p>B2クラウドを開いているあいだ、無操作によるログアウトが起きないようセッションを維持します。この動作に設定は不要です。<br>
+    セッションが切れた場合に自動でログインし直す機能は、下で有効・無効を選べます。<br>
     この設定はChrome拡張の黒猫アイコンのオプションからいつでも変更できます。</p>
+    <p class="warning">⚠ 共用PCや第三者が触れるPCでは使用しないでください。<br>
+    セッションを維持するため、無操作による自動ログアウトが働きません。</p>
 </div>
 <div>
+    <label><input type="checkbox" id="autoLogin" checked> セッションが切れたとき、保存した情報で自動的にログインする</label>
+    <p class="note">無効にすると、保存済みのログイン情報を削除します。ログイン画面までは自動で移動しますが、入力はご自身で行うことになります。</p>
+</div>
+<fieldset id="credentials">
     お客様コード:<br>
     <input type="text" id="code1" maxlength="12" placeholder="半角数字 9~12桁">
-    <br><br> 
+    <br><br>
     お客様コード枝番（任意）:<br>
     <input type="text" id="code2" maxlength="3" placeholder="3桁">
     <br><br>
@@ -21,8 +33,14 @@
     <br><br>
     個人ユーザーID（任意）:<br>
     <input type="text" id="id" maxlength="20" placeholder="半角英数字 6~20桁">
-    <br><br>
-    <button id="save">保存</button>
+</fieldset>
+<div>
+    <br>
+    <label><input type="checkbox" id="debug"> セッションの状態を表示する</label>
+    <p class="note">拡張機能のアイコンに、セッションが切れるまでの残り分数を表示します。あわせて、確認と延長の記録をブラウザのコンソールに出力します。切り替えたあとは、B2クラウドの画面を開き直してください。</p>
+</div>
+<div>
+    <button id="save" disabled>保存</button>
     <br><br>
     <span id="message" style="color:red"></span>
 </div>

@@ -1,15 +1,16 @@
 {
     "name": "B2クラウド自動再ログイン",
-    "version": "0.2.0",
-    "description": "B2クラウド自動再ログイン",
+    "version": "0.3.0",
+    "description": "B2クラウドのセッションを維持し、設定に応じて自動で再ログインします",
     "manifest_version": 3,
+    "minimum_chrome_version": "103",
     "permissions": [
         "storage"
     ],
     "content_scripts": [
         {
             "matches": [
-                "https://newb2web.kuronekoyamato.co.jp/system_error.html*",
+                "https://newb2web.kuronekoyamato.co.jp/*",
                 "https://bmypage.kuronekoyamato.co.jp/bmypage/servlet/*",
                 "https://bmypage.kuronekoyamato.co.jp/bmypage/logout_systemError.htm*"
             ],
@@ -21,6 +22,9 @@
     ],
     "background": {
         "service_worker": "background.js"
+    },
+    "action": {
+        "default_title": "B2クラウド自動再ログイン"
     },
     "options_page": "options.html",
     "icons": {
