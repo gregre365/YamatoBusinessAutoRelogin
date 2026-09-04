@@ -50,16 +50,21 @@ document.getElementById('save').onclick = async () => {
         return;
     }
 
-    if (element_code1.value.length < 9 || element_code1.value.length > 12) {
+    // 長さだけを見ていると、全角の数字を入れても通ってしまう。日本語入力を
+    // 使う画面では起こりやすく、「保存しました」と出たあと、次の自動ログインで
+    // 初めて失敗が分かる
+    if (!/^[0-9]{9,12}$/.test(element_code1.value)) {
         element_code1.setAttribute('style', 'background-color: yellow');
         validate_ok = false;
         message += '・お客様コードは半角数字9～12桁です<br>';
     }
-    if (element_code2.value.length != 0 && element_code2.value.length != 3) {
+    if (element_code2.value.length != 0 && !/^[0-9]{3}$/.test(element_code2.value)) {
         element_code2.setAttribute('style', 'background-color: yellow');
         validate_ok = false;
         message += '・お客様コード枝番は空白もしくは半角数字3桁です<br>';
     }
+    // パスワードと個人ユーザーIDは長さだけを見る。ヤマト側が記号を許すかどうかを
+    // 確認できていないため、文字種で弾くと、正しいパスワードを保存できなくなる
     if (element_password.value.length < 8 || element_password.value.length > 12) {
         element_password.setAttribute('style', 'background-color: yellow');
         validate_ok = false;
@@ -120,4 +125,8 @@ loadValues().then(values => {
     // 読み込みが終わるまで保存させない。途中で押されると、まだ反映されていない
     // チェックボックスの状態で保存され、ログイン情報を消してしまう
     document.getElementById('save').disabled = false;
+}).catch(() => {
+    // 読み込めなかった場合も、保存させてはいけない。空の入力欄のまま保存すると
+    // 保存済みのログイン情報を消してしまう。無効のまま理由だけ伝える
+    document.getElementById('message').innerHTML = '設定を読み込めませんでした。この画面を開き直してください';
 });
