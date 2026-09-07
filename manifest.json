@@ -5,7 +5,11 @@
     "manifest_version": 3,
     "minimum_chrome_version": "103",
     "permissions": [
-        "storage"
+        "storage",
+        "alarms"
+    ],
+    "host_permissions": [
+        "https://newb2web.kuronekoyamato.co.jp/*"
     ],
     "content_scripts": [
         {
