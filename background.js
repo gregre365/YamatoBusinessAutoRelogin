@@ -24,12 +24,16 @@ const B2_PAGES = 'https://newb2web.kuronekoyamato.co.jp/*';
 // 60分のセッションに対して十分短く取る。アラームが1〜2回遅れても間に合う
 const KEEPALIVE_PERIOD_MINUTES = 20;
 const KEEPALIVE_TIMEOUT = 30 * 1000;
-
 // 残す件数。アラーム（20分おき）とページ側の報告（5分おき）が混ざるので、
 // これで8時間ぶんほど見える
 const KEEPALIVE_HISTORY = 100;
 
-async function log(text) {
+// 記録の書き込みは、アラームと複数のタブからの報告が同時に来る。読んで足して
+// 書き戻す形なので、そのままでは後から終わったほうが先の追記を消す。
+// 診断したい場面ほど取りこぼすので、順番に流す
+let log_queue = Promise.resolve();
+
+async function appendLog(text) {
     const values = await chrome.storage.local.get(['debug', 'log']);
 
     if (values.debug !== true) {
@@ -37,34 +41,56 @@ async function log(text) {
     }
 
     const line = new Date().toLocaleTimeString('ja-JP') + ' ' + text;
+    const history = values.log || [];
 
     console.log('[B2] ' + line);
-
+    history.push(line);
     // サービスワーカーは用が済むと終了し、コンソールの内容も消える。
     // 開発者ツールを繋いだままにすれば終了しなくなるが、それでは
     // 「終了したワーカーがアラームで起きるか」という肝心の点を試せない。
-    // あとから読み返せるよう、結果だけ残す
-    const history = values.log || [];
+    // あとから読み返せるよう、結果を残す
+    await chrome.storage.local.set({log: history.slice(-KEEPALIVE_HISTORY)});
+    // 直近の出来事をツールチップにも出す。バッジの数字が凍ったタブの古い値の
+    // ままでも、いつ何が起きたかはここで分かる
+    chrome.action.setTitle({title: ACTION_TITLE + '\n' + line});
+}
 
-    history.push(line);
-    chrome.storage.local.set({log: history.slice(-KEEPALIVE_HISTORY)});
+function log(text) {
+    log_queue = log_queue.then(() => appendLog(text)).catch(() => {});
+    return log_queue;
+}
+
+function clearLog() {
+    // 削除も同じ列に並べる。処理中の追記が削除のあとに書き戻すと、
+    // 消したはずの記録が復活し、以降は更新されないまま残り続ける
+    log_queue = log_queue.then(() => chrome.storage.local.remove('log')).catch(() => {});
+    return log_queue;
 }
 
 async function keepSessionAlive() {
-    // B2クラウドのタブが1つも無ければ、維持する理由が無い。開いてもいないのに
-    // 裏で生かし続けるのは、共用PCでは使わないという注意書きと噛み合わない。
-    //
-    // タブの照会に tabs 権限は要らない。対象ホストの host_permissions があれば、
-    // そのホストのタブは URL で絞り込める
-    const tabs = await chrome.tabs.query({url: B2_PAGES});
-
-    if (tabs.length === 0) {
-        chrome.alarms.clear(KEEPALIVE_ALARM);
-        log('停止（B2クラウドのタブなし）');
-        return;
-    }
-
     try {
+        // B2クラウドのタブが1つも無ければ、維持する理由が無い。開いてもいないのに
+        // 裏で生かし続けるのは、共用PCでは使わないという注意書きと噛み合わない。
+        //
+        // タブの照会に tabs 権限は要らない。対象ホストの host_permissions があれば、
+        // そのホストのタブは URL で絞り込める
+        const tabs = await chrome.tabs.query({url: B2_PAGES});
+
+        if (tabs.length === 0) {
+            await chrome.alarms.clear(KEEPALIVE_ALARM);
+            log('停止（B2クラウドのタブなし）');
+
+            // 消すと決めてから消し終えるまでの間に開かれたタブを取りこぼさない。
+            // ページ側からの通知は読み込み時の一度きりなので、ここで見落とすと
+            // タブがあるのにアラームが無い状態が、次の画面遷移まで続く
+            const opened = await chrome.tabs.query({url: B2_PAGES});
+
+            if (opened.length > 0) {
+                await ensureAlarm();
+            }
+            return;
+        }
+
         const response = await fetch(KEEPALIVE_URL, {
             cache: 'no-store',
             credentials: 'include',
@@ -80,11 +106,10 @@ async function keepSessionAlive() {
         } else {
             log('エラー' + response.status);
         }
-        chrome.action.setTitle({
-            title: ACTION_TITLE + '\n' + new Date().toLocaleTimeString('ja-JP') + ' 維持'
-        });
     } catch (e) {
-        log('通信失敗');
+        // 通信だけでなく、タブの照会の失敗もここに来る。黙って終わると
+        // 記録に何も残らないまま20分おきに失敗し続け、気づく手がかりが無くなる
+        log('失敗（' + e.name + '）');
     }
 }
 
@@ -94,15 +119,23 @@ chrome.alarms.onAlarm.addListener(alarm => {
     }
 });
 
-// B2クラウドのページが読み込まれたら、アラームを張る。
-// 既にあるものは張り直さない。create は同じ名前のアラームを置き換えるので、
-// ページを開くたびに呼ぶと予定が毎回先送りされ、いつまでも発火しなくなる
+// B2クラウドのページが読み込まれたら、アラームを張る
 async function ensureAlarm() {
-    const existing = await chrome.alarms.get(KEEPALIVE_ALARM);
+    try {
+        // 既にあるものは張り直さない。create は同じ名前のアラームを置き換えるので、
+        // ページを開くたびに呼ぶと予定が毎回先送りされ、いつまでも発火しなくなる
+        const existing = await chrome.alarms.get(KEEPALIVE_ALARM);
 
-    if (!existing) {
-        chrome.alarms.create(KEEPALIVE_ALARM, {periodInMinutes: KEEPALIVE_PERIOD_MINUTES});
+        if (existing) {
+            return;
+        }
+
+        await chrome.alarms.create(KEEPALIVE_ALARM, {periodInMinutes: KEEPALIVE_PERIOD_MINUTES});
         log('開始（' + KEEPALIVE_PERIOD_MINUTES + '分おき）');
+    } catch (e) {
+        // 張れないまま黙って終わると、維持が始まっていないことに気づけない。
+        // ページ側は表示に戻るたびに通知してくるので、次の機会に張り直せる
+        log('アラームを張れず（' + e.name + '）');
     }
 }
 
@@ -142,12 +175,6 @@ async function updateBadge(message, tabId) {
         text: message.state === '失効' ? '!' : (unknown ? '?' : String(message.minutes))
     });
     chrome.action.setBadgeBackgroundColor({color: color});
-    // タブが凍結されると報告が止まり、バッジは古い値のまま残る。数字だけでは
-    // 「いまの残り時間」と「凍る直前の残り時間」を見分けられないので、
-    // いつの値なのかを添える
-    chrome.action.setTitle({
-        title: ACTION_TITLE + '\n' + new Date().toLocaleTimeString('ja-JP') + ' ' + message.state
-    });
     // サービスワーカーは短命なので、表示中のタブは storage に覚えておく。
     //
     // ここで待っているあいだにタブが閉じられると、消したはずの表示を書き戻して
@@ -181,7 +208,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
     chrome.action.setTitle({title: ACTION_TITLE});
     chrome.storage.session.remove('badgeTabId');
     // 診断のために溜めたものなので、表示をやめたら残さない
-    chrome.storage.local.remove('log');
+    clearLog();
 });
 
 // 表示元のタブが閉じられたら、古い残り時間を消す

@@ -199,6 +199,13 @@ function startKeepAlive() {
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             keepSessionAlive();
+            // アラームを張り損ねていた場合の張り直し。読み込み時に一度伝えるだけだと、
+            // そのとき失敗したきり、次の画面遷移まで維持が始まらない
+            try {
+                chrome.runtime.sendMessage({type: 'b2page'}).catch(() => {});
+            } catch (e) {
+                // Extension context invalidated
+            }
         }
     });
 
