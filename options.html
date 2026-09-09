@@ -7,19 +7,34 @@
         .warning { color: #a00; }
         .note { color: #555; font-size: 90%; }
         fieldset:disabled { opacity: 0.5; }
+        #updated { border: 1px solid #a00; padding: 0 1em 1em; margin-bottom: 1.5em; }
     </style>
 </head>
 <body>
+<div id="updated" hidden>
+    <h3>この更新で、動作が変わりました</h3>
+    <p><strong>B2クラウドを開いているあいだ、ログアウトしなくなりました。</strong>これまでは60分放置すると切れていましたが、切れません。</p>
+    <p class="warning">つまり、席を外してもログインしたままになります。<br>
+    共用PCや、第三者が触れる場所のPCでは使用しないでください。離席するときは、OSの画面ロック（Windowsなら <kbd>Win</kbd>+<kbd>L</kbd>）をお使いください。</p>
+    <p>これまでどおりの動作に戻したい場合は、下の「セッションを維持する」を外してください。<br>
+    ログイン情報を保存したくない場合は、「自動的にログインする」を外してください。</p>
+    <p class="note">この案内は一度だけ表示されます。</p>
+</div>
 <div>
-    <p>B2クラウドを開いているあいだ、無操作によるログアウトが起きないようセッションを維持します。この動作に設定は不要です。<br>
-    セッションが切れた場合に自動でログインし直す機能は、下で有効・無効を選べます。<br>
+    <p>B2クラウドを開いているあいだ、無操作によるログアウトが起きないようセッションを維持します。<br>
+    セッションが切れた場合に自動でログインし直す機能もあります。どちらも下で有効・無効を選べます。<br>
     この設定はChrome拡張の黒猫アイコンのオプションからいつでも変更できます。</p>
     <p class="warning">⚠ 共用PCや第三者が触れるPCでは使用しないでください。<br>
-    セッションを維持するため、無操作による自動ログアウトが働きません。</p>
+    <span id="noLogout">セッションを維持するため、無操作による自動ログアウトが働きません。</span></p>
+</div>
+<div>
+    <label><input type="checkbox" id="keepAlive" checked disabled> B2クラウドを開いているあいだ、セッションを維持する</label>
+    <p class="note">無効にすると、無操作から60分でログアウトする本来の動作に戻ります。0.2.0 以前と同じ動きです。</p>
 </div>
 <div>
     <label><input type="checkbox" id="autoLogin" checked> セッションが切れたとき、保存した情報で自動的にログインする</label>
     <p class="note">無効にすると、保存済みのログイン情報を削除します。ログイン画面までは自動で移動しますが、入力はご自身で行うことになります。</p>
+    <p class="note">上の2つを両方とも無効にしても、エラー画面からログイン画面へ移動する動作は残ります。完全に止めるには、<code>chrome://extensions</code> で拡張機能自体を無効にしてください。</p>
 </div>
 <fieldset id="credentials">
     お客様コード:<br>
@@ -36,7 +51,7 @@
 </fieldset>
 <div>
     <br>
-    <label><input type="checkbox" id="debug"> セッションの状態を表示する</label>
+    <label><input type="checkbox" id="debug" disabled> セッションの状態を表示する</label>
     <p class="note">拡張機能のアイコンに、セッションが切れるまでの残り分数を表示します。あわせて、確認と延長の記録をブラウザのコンソールに出力します。切り替えたあとは、B2クラウドの画面を開き直してください。</p>
 </div>
 <div>

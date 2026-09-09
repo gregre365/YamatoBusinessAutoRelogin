@@ -32,6 +32,9 @@ let keepalive_token = 0;
 let keepalive_running = false;
 let keepalive_expired = false;
 let keepalive_debug = false;
+let keepalive_off = false;
+let keepalive_timers = false;
+let keepalive_changed = false;
 
 async function uidExpiry() {
     if (typeof cookieStore === 'undefined') {
@@ -89,6 +92,11 @@ function report(state, remaining) {
 }
 
 async function keepSessionAlive() {
+    // 設定画面で維持を切られたら、その場でやめる。ページを開き直すまで
+    // 動き続けると、切ったつもりの動作が裏で続く
+    if (keepalive_off) {
+        return;
+    }
     // タイマーと visibilitychange が重なっても、同時には叩かない。ただし
     // タブが凍結されるなどして、打ち切りも効かないまま実行中の印だけが残ると、
     // 以降のタイマーがすべて素通りして無言で止まる。時間を見て捨てる
@@ -181,17 +189,47 @@ async function keepSessionAlive() {
     }
 }
 
-function startKeepAlive() {
-    // 維持の本体はサービスワーカー側のアラーム。B2クラウドのページを開いたことを
-    // 伝えて、アラームを張らせる。このタブが凍結されても、そちらは動き続ける
+// 維持の本体はサービスワーカー側のアラーム。B2クラウドのページを開いたことを
+// 伝えて、アラームを張らせる。このタブが凍結されても、そちらは動き続ける
+function notifyBackground() {
     try {
         chrome.runtime.sendMessage({type: 'b2page'}).catch(() => {});
     } catch (e) {
         // Extension context invalidated
     }
+}
 
-    // タイマーとリスナーを先に登録する。デバッグ表示の設定は本質ではないので、
-    // その読み取りに失敗しても、セッションの維持だけは動かす
+// 設定の監視は、維持が無効な状態で始まっても登録しておく。startTimers の中に
+// 置くと、無効で始まったページは監視ごと欠け、あとから有効に戻しても
+// 再読み込みまで予備が動かない
+function watchSetting() {
+    try {
+        chrome.storage.onChanged.addListener((changes, area) => {
+            if (area !== 'local' || !changes.keepAlive) {
+                return;
+            }
+
+            keepalive_changed = true;
+            keepalive_off = changes.keepAlive.newValue === false;
+
+            if (!keepalive_off) {
+                startTimers();
+            }
+        });
+    } catch (e) {
+        // Extension context invalidated
+    }
+}
+
+function startTimers() {
+    // 有効・無効を往復しても、タイマーとリスナーを重ねて登録しない
+    if (keepalive_timers) {
+        return;
+    }
+    keepalive_timers = true;
+
+    notifyBackground();
+
     setInterval(keepSessionAlive, KEEPALIVE_CHECK_INTERVAL);
     setTimeout(keepSessionAlive, KEEPALIVE_INITIAL_DELAY);
     // バックグラウンドのタブではタイマーが間引かれたり止まったりする。
@@ -201,23 +239,43 @@ function startKeepAlive() {
             keepSessionAlive();
             // アラームを張り損ねていた場合の張り直し。読み込み時に一度伝えるだけだと、
             // そのとき失敗したきり、次の画面遷移まで維持が始まらない
-            try {
-                chrome.runtime.sendMessage({type: 'b2page'}).catch(() => {});
-            } catch (e) {
-                // Extension context invalidated
-            }
+            notifyBackground();
         }
     });
+}
+
+function startKeepAlive() {
+    watchSetting();
 
     try {
-        chrome.storage.local.get(['debug'])
+        chrome.storage.local.get(['keepAlive', 'debug'])
             .then(values => {
                 keepalive_debug = values.debug === true;
+
+                // 読み取りを待っているあいだに設定が変わっていたら、そちらが新しい。
+                // 後から届いた古い値で上書きすると、切ったはずの維持が続いたり、
+                // 戻したはずの維持が動かないまま固定される
+                if (!keepalive_changed) {
+                    // 設定が無い場合（0.2.0 以前からの更新、または初回）は維持する
+                    keepalive_off = values.keepAlive === false;
+                }
+
+                if (keepalive_off) {
+                    log('維持は無効');
+                    return;
+                }
+
                 // 最初の確認まで10秒あり、その間は何も出ない。この1行が無いと
                 // 「スクリプトが動いていない」と「まだ確認前」を見分けられない
                 log('開始');
+                startTimers();
             })
-            .catch(() => {});
+            .catch(() => {
+                // 読めないときは動かさない。ここは予備で、維持の本体は
+                // サービスワーカーが持っている。しかもこの読み取りはページごとに
+                // 一度きりなので、読み違えると「無効にしたはずの維持」を
+                // そのページが延々と続けることになる。安全側に倒す
+            });
     } catch (e) {
         // Extension context invalidated
     }

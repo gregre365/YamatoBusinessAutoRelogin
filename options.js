@@ -1,11 +1,59 @@
 
+// 0.2.0 以前からの更新で開かれたときだけ、変わった点を知らせる。
+// 機能が増えたからではなく、放置してもログアウトしなくなるという、
+// 安全側の性質が変わったため
+if (new URLSearchParams(location.search).get('updated') === '1') {
+    document.getElementById('updated').hidden = false;
+}
+
 const element_autoLogin = document.getElementById('autoLogin');
 const element_credentials = document.getElementById('credentials');
 const element_debug = document.getElementById('debug');
+const element_keepAlive = document.getElementById('keepAlive');
 
 element_autoLogin.onchange = () => {
     element_credentials.disabled = !element_autoLogin.checked;
 }
+
+// ログイン情報の検証とは無関係な設定なので、保存ボタンに紐づけない。
+// 紐づけると、ログイン情報を登録していない人がこのチェックだけ変えようとしたとき、
+// 入力欄が空だという理由で弾かれて反映されない
+function applyToggle(element, key, label) {
+    // 素早く切り替えると保存が並走する。順番に流さないと、あとの操作の結果を
+    // 先の操作が上書きしうる
+    let queue = Promise.resolve();
+
+    element.onchange = () => {
+        const wanted = element.checked;
+
+        queue = queue.then(async () => {
+            try {
+                await chrome.storage.local.set({[key]: wanted});
+                element.dataset.saved = String(wanted);
+                // 成功しても何も書かない。保存ボタンと同じ表示欄を使うので、
+                // 書くとログイン情報の検証結果を消してしまう。チェックが
+                // そのまま残っていることが、反映された印になる
+            } catch (e) {
+                // 戻す先は「いまの表示の反対」ではなく「最後に保存できた値」。
+                // 反転させると、失敗したあとに利用者がもう一度切り替えていた場合、
+                // その選択まで巻き戻して表示と保存値が食い違う
+                if (element.checked === wanted) {
+                    element.checked = element.dataset.saved === 'true';
+                    document.getElementById('message').innerHTML = label + 'を変更できませんでした';
+                }
+            }
+            updateWarning();
+        });
+    };
+}
+
+// 維持を無効にすれば、無操作でのログアウトは働く。警告文が実態と食い違わないようにする
+function updateWarning() {
+    document.getElementById('noLogout').hidden = !element_keepAlive.checked;
+}
+
+applyToggle(element_keepAlive, 'keepAlive', 'セッションの維持');
+applyToggle(element_debug, 'debug', '状態の表示');
 
 document.getElementById('save').onclick = async () => {
     const element_save = document.getElementById('save');
@@ -30,7 +78,6 @@ document.getElementById('save').onclick = async () => {
         try {
             await chrome.storage.local.set({
                 autoLogin: false,
-                debug: element_debug.checked,
                 code1: '',
                 code2: '',
                 password: '',
@@ -79,7 +126,6 @@ document.getElementById('save').onclick = async () => {
         try {
             await chrome.storage.local.set({
                 autoLogin: true,
-                debug: element_debug.checked,
                 code1: element_code1.value,
                 code2: element_code2.value,
                 password: element_password.value,
@@ -95,7 +141,7 @@ document.getElementById('save').onclick = async () => {
 }
 
 async function loadValues() {
-    const values = await chrome.storage.local.get(['code1', 'code2', 'password', 'id', 'autoLogin', 'debug']);
+    const values = await chrome.storage.local.get(['code1', 'code2', 'password', 'id', 'autoLogin', 'keepAlive', 'debug']);
 
     // Manifest V2 の頃に localStorage へ保存した設定を一度だけ引き継ぐ
     if (values.code1 === undefined && localStorage.code1) {
@@ -121,7 +167,16 @@ loadValues().then(values => {
     // 設定が無い場合（0.2.0 以前からの更新、または初回）は有効とする
     element_autoLogin.checked = values.autoLogin !== false;
     element_credentials.disabled = !element_autoLogin.checked;
+    element_keepAlive.checked = values.keepAlive !== false;
     element_debug.checked = values.debug === true;
+    // 読み込みが終わるまで触らせない。途中で切り替えると、直後の読み込みで
+    // 表示だけ元に戻り、保存された値と食い違う
+    // 保存に失敗したときに戻す先として、いま保存されている値を覚えておく
+    element_keepAlive.dataset.saved = String(element_keepAlive.checked);
+    element_debug.dataset.saved = String(element_debug.checked);
+    element_keepAlive.disabled = false;
+    element_debug.disabled = false;
+    updateWarning();
     // 読み込みが終わるまで保存させない。途中で押されると、まだ反映されていない
     // チェックボックスの状態で保存され、ログイン情報を消してしまう
     document.getElementById('save').disabled = false;
