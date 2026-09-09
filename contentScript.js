@@ -39,9 +39,13 @@ async function uidExpiry() {
     }
 
     try {
-        const uid = await cookieStore.get('UID');
+        // 同じ名前のクッキーが複数見えることがある。実測では、画面遷移の直後に
+        // 24時間先の期限を持つ UID が混ざり、残り1440分と読めた。
+        // 早いほうを採れば、読み違えても延長が遅れる側には倒れない
+        const uids = await cookieStore.getAll('UID');
+        const expires = uids.map(uid => uid.expires).filter(e => e);
 
-        return uid && uid.expires ? uid.expires : null;
+        return expires.length > 0 ? Math.min(...expires) : null;
     } catch (e) {
         // 読み取りに失敗した場合も、期限が分からないものとして扱う
         return null;
